@@ -19,10 +19,8 @@ import static java.lang.Math.min;
 
 import android.app.Activity;
 import android.graphics.Bitmap;
-import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.RectF;
-import android.os.SystemClock;
 import android.os.Trace;
 import android.util.Log;
 import java.io.IOException;
@@ -31,15 +29,22 @@ import java.util.ArrayList;
 import java.util.List;
 import org.tensorflow.lite.Interpreter;
 import org.tensorflow.lite.support.common.FileUtil;
-import org.tensorflow.lite.support.image.TensorImage;
 import org.tensorflow.lite.support.label.Category;
 import org.tensorflow.lite.support.metadata.MetadataExtractor;
 import org.tensorflow.lite.task.core.BaseOptions;
-import org.tensorflow.lite.task.core.vision.ImageProcessingOptions;
 import org.tensorflow.lite.task.core.vision.ImageProcessingOptions.Orientation;
 import org.tensorflow.lite.task.vision.classifier.Classifications;
-import org.tensorflow.lite.task.vision.classifier.ImageClassifier;
-import org.tensorflow.lite.task.vision.classifier.ImageClassifier.ImageClassifierOptions;
+
+import androidx.annotation.NonNull;
+
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.face.Face;
+import com.google.mlkit.vision.face.FaceDetection;
+import com.google.mlkit.vision.face.FaceDetector;
+import com.google.mlkit.vision.face.FaceDetectorOptions;
 
 /** A classifier specialized to label images using TensorFlow Lite. */
 public abstract class Classifier {
@@ -71,6 +76,13 @@ public abstract class Classifier {
   private final int imageSizeY;
   /** An instance of the driver class to run model inference with Tensorflow Lite. */
   protected Interpreter imageClassifier = null;
+
+  // to detect faces
+  protected FaceDetector detector;
+  public ArrayList<Recognition> recognitions = new ArrayList<>();
+
+  MainActivity controller = new MainActivity();
+  private int count = 0;
 
   /**
    * Creates a classifier with the provided configuration.
@@ -185,9 +197,16 @@ public abstract class Classifier {
     if (getModelPath() == "compressed_model.tflite") {
       MappedByteBuffer tfliteModel = FileUtil.loadMappedFile(activity, getModelPath());
       imageClassifier = new Interpreter(tfliteModel);
+
+      // initialize face detector to detect smiles
+      FaceDetectorOptions classification_options =
+              new FaceDetectorOptions.Builder()
+                      .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
+                      .build();
+      detector = FaceDetection.getClient(classification_options);
     }
 
-    Log.d(TAG, "Created a Tensorflow Lite Image Classifier.");
+    Log.d(TAG, "Created a Tensorflow Lite Image Classifier and detector.");
 
     // Get the input image size information of the underlying tflite model.
     MappedByteBuffer tfliteModel = FileUtil.loadMappedFile(activity, getModelPath());
@@ -196,6 +215,8 @@ public abstract class Classifier {
     int[] imageShape = metadataExtractor.getInputTensorShape(/*inputIndex=*/ 0);
     imageSizeY = imageShape[1];
     imageSizeX = imageShape[2];
+
+    controller.init();
   }
 
   public static Bitmap scaleDown(Bitmap realImage, float maxImageSize,
@@ -216,73 +237,124 @@ public abstract class Classifier {
     // Logs this method so that it can be analyzed with systrace.
     Trace.beginSection("recognizeImage");
 
-    TensorImage inputImage = TensorImage.fromBitmap(bitmap);
-    bitmap = scaleDown(bitmap, 48, true);
-    int width = bitmap.getWidth();
-    int height = bitmap.getHeight();
-    int cropSize = min(width, height);
-    // TODO(b/169379396): investigate the impact of the resize algorithm on accuracy.
-    // Task Library resize the images using bilinear interpolation, which is slightly different from
-    // the nearest neighbor sampling algorithm used in lib_support. See
-    // https://github.com/tensorflow/examples/blob/0ef3d93e2af95d325c70ef3bcbbd6844d0631e07/lite/examples/image_classification/android/lib_support/src/main/java/org/tensorflow/lite/examples/classification/tflite/Classifier.java#L310.
-    ImageProcessingOptions imageOptions =
-        ImageProcessingOptions.builder()
-            .setOrientation(getOrientation(sensorOrientation))
-            // Set the ROI to the center of the image.
-            .setRoi(
-                new Rect(
-                    /*left=*/ (width - cropSize) / 2,
-                    /*top=*/ (height - cropSize) / 2,
-                    /*right=*/ (width + cropSize) / 2,
-                    /*bottom=*/ (height + cropSize) / 2))
-            .build();
+//    TensorImage inputImage = TensorImage.fromBitmap(bitmap);
+    InputImage image = InputImage.fromBitmap(bitmap, sensorOrientation);
 
-    // Runs the inference call.
-    Trace.beginSection("runInference");
-    long startTimeForReference = SystemClock.uptimeMillis();
+    // run smile detection on input image
+    Task<List<Face>> result =
+            detector.process(image)
+                    .addOnSuccessListener(
+                            new OnSuccessListener<List<Face>>() {
+                              @Override
+                              public void onSuccess(List<Face> faces) {
+                                for (Face face : faces) {
+                                  Rect bounds = face.getBoundingBox();
+                                  float rotY = face.getHeadEulerAngleY();  // Head is rotated to the right rotY degrees
+                                  float rotZ = face.getHeadEulerAngleZ();  // Head is tilted sideways rotZ degrees
 
-    float[][] output=new float[1][7];
-    int pixels[] = new int[width * height];
-    float grayscaleImg[][][][] = new float[1][48][48][1];
+                                  // If classification was enabled:
+                                  if (face.getSmilingProbability() != null) {
+                                    float smileProb = face.getSmilingProbability();
+                                    reportResults(smileProb);
+                                  }
+                                }
+                              }
+                            })
+                    .addOnFailureListener(
+                            new OnFailureListener() {
+                              @Override
+                              public void onFailure(@NonNull Exception e) {
+                                // Task failed with an exception
+                                // ...
+                                Log.e(TAG, "Failed to detect face!");
+                              }
+                            });
 
-    bitmap.getPixels(pixels,0, width, 0, 0, width, height);
-
-    for (int i = 0; i < width*height; i++) {
-      int x = i % width;
-      int y = i / width;
-//      Log.e(TAG, "x: " + x + " y: " + y + " Red: " + Color.red(pixels[i]) + " Green: " + Color.green(pixels[i]) + " Blue: " + Color.blue(pixels[i]));
-      grayscaleImg[0][x][y][0] = (int) (Color.red(pixels[i]) * 0.299 + Color.green(pixels[i]) * 0.587 + Color.blue(pixels[i]) * 0.114);
-    }
-
-    String classes[] = {"angry", "disgusted", "afraid", "happy", "neutral", "sad", "surprised"};
-
-//    Log.e(TAG, "Before image classifier");
-    imageClassifier.run(grayscaleImg, output);
-    String prediction = "";
-    int best_ind = 0;
-    float highest_score = 0;
-
-    for (int i = 0; i < 7; i++) {
-      if (output[0][i] > highest_score) {
-        best_ind = i;
-        highest_score = output[0][i];
-      }
-    }
-    prediction = classes[best_ind];
-//    Log.e(TAG, "Pred: "+prediction);
-
-    long endTimeForReference = SystemClock.uptimeMillis();
-    Trace.endSection();
-    Log.v(TAG, "Timecost to run model inference: " + (endTimeForReference - startTimeForReference));
-    Log.v(TAG, "Model Output: " + output);
-
-    Trace.endSection();
-
-    final ArrayList<Recognition> recognitions = new ArrayList<>();
-    recognitions.add(new Recognition(prediction, prediction, highest_score, null));
-
+//    bitmap = scaleDown(bitmap, 48, true);
+//    int width = bitmap.getWidth();
+//    int height = bitmap.getHeight();
+//    int cropSize = min(width, height);
+//    // TODO(b/169379396): investigate the impact of the resize algorithm on accuracy.
+//    // Task Library resize the images using bilinear interpolation, which is slightly different from
+//    // the nearest neighbor sampling algorithm used in lib_support. See
+//    // https://github.com/tensorflow/examples/blob/0ef3d93e2af95d325c70ef3bcbbd6844d0631e07/lite/examples/image_classification/android/lib_support/src/main/java/org/tensorflow/lite/examples/classification/tflite/Classifier.java#L310.
+//    ImageProcessingOptions imageOptions =
+//        ImageProcessingOptions.builder()
+//            .setOrientation(getOrientation(sensorOrientation))
+//            // Set the ROI to the center of the image.
+//            .setRoi(
+//                new Rect(
+//                    /*left=*/ (width - cropSize) / 2,
+//                    /*top=*/ (height - cropSize) / 2,
+//                    /*right=*/ (width + cropSize) / 2,
+//                    /*bottom=*/ (height + cropSize) / 2))
+//            .build();
+//
+//    // Runs the inference call.
+//    Trace.beginSection("runInference");
+//    long startTimeForReference = SystemClock.uptimeMillis();
+//
+//    float[][] output=new float[1][7];
+//    int pixels[] = new int[width * height];
+//    float grayscaleImg[][][][] = new float[1][48][48][1];
+//
+//    bitmap.getPixels(pixels,0, width, 0, 0, width, height);
+//
+//    for (int i = 0; i < width*height; i++) {
+//      int x = i % width;
+//      int y = i / width;
+////      Log.e(TAG, "x: " + x + " y: " + y + " Red: " + Color.red(pixels[i]) + " Green: " + Color.green(pixels[i]) + " Blue: " + Color.blue(pixels[i]));
+//      grayscaleImg[0][x][y][0] = (int) (Color.red(pixels[i]) * 0.299 + Color.green(pixels[i]) * 0.587 + Color.blue(pixels[i]) * 0.114);
+//    }
+//
+//    String classes[] = {"angry", "disgusted", "afraid", "happy", "neutral", "sad", "surprised"};
+//
+////    Log.e(TAG, "Before image classifier");
+//    imageClassifier.run(grayscaleImg, output);
+//    String prediction = "";
+//    int best_ind = 0;
+//    float highest_score = 0;
+//
+//    for (int i = 0; i < 7; i++) {
+//      if (output[0][i] > highest_score) {
+//        best_ind = i;
+//        highest_score = output[0][i];
+//      }
+//    }
+//    prediction = classes[best_ind];
+////    Log.e(TAG, "Pred: "+prediction);
+//
+//    long endTimeForReference = SystemClock.uptimeMillis();
+//    Trace.endSection();
+//    Log.v(TAG, "Timecost to run model inference: " + (endTimeForReference - startTimeForReference));
+//    Log.v(TAG, "Model Output: " + output);
+//
+//    Trace.endSection();
+//
+//    final ArrayList<Recognition> recognitions = new ArrayList<>();
+//    recognitions.add(new Recognition(prediction, prediction, highest_score, null));
+//
     return recognitions;
   }
+
+  public void reportResults(float smileProb) {
+    recognitions = new ArrayList<>();
+
+    if (smileProb > 0.5) {
+      recognitions.add(new Recognition("Smiling", "Smiling", smileProb, null));
+      if (count % 10 == 0) {
+        controller.forward();
+      }
+    }
+    else {
+      recognitions.add(new Recognition("Not Smiling", "Not Smiling", 1-smileProb, null));
+      if (count % 10 == 0) {
+        controller.backward();
+      }
+    }
+    count++;
+  }
+
 
   /** Closes the interpreter and model to release resources. */
   public void close() {

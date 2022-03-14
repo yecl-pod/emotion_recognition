@@ -95,7 +95,7 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
               final List<Classifier.Recognition> results =
                   classifier.recognizeImage(rgbFrameBitmap, sensorOrientation);
               lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
-              LOGGER.e("Detect: %s", results);
+              LOGGER.v("Detect: %s", results);
 
               runOnUiThread(
                   new Runnable() {
