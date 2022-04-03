@@ -1,6 +1,7 @@
 package org.tensorflow.lite.examples.classification.tflite
 
 import android.annotation.SuppressLint
+import android.app.PendingIntent.getService
 import android.content.*
 import android.os.Bundle
 import android.os.IBinder
@@ -63,7 +64,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         // start and bind service
         Log.e("INIT", ""+PodUsbSerialService::class.java)
 
-        mPodUsbSerialService = PodUsbSerialService.UsbBinder.getService()
+//        mPodUsbSerialService = PodUsbSerialService.UsbBinder.getService()
     }
 
     override fun onStart() {

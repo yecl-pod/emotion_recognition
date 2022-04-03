@@ -740,10 +740,6 @@ int id icon_only 0x0
 int id image 0x0
 int id info 0x0
 int id italic 0x0
-int id item1 0x0
-int id item2 0x0
-int id item3 0x0
-int id item4 0x0
 int id light 0x0
 int id line1 0x0
 int id line3 0x0
@@ -869,8 +865,6 @@ int layout select_dialog_item_material 0x0
 int layout select_dialog_multichoice_material 0x0
 int layout select_dialog_singlechoice_material 0x0
 int layout support_simple_spinner_dropdown_item 0x0
-int menu example_menu 0x0
-int menu example_menu2 0x0
 int string abc_action_bar_home_description 0x0
 int string abc_action_bar_up_description 0x0
 int string abc_action_menu_overflow_description 0x0

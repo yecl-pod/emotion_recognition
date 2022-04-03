@@ -741,10 +741,6 @@ id icon_only
 id image
 id info
 id italic
-id item1
-id item2
-id item3
-id item4
 id light
 id line1
 id line3
@@ -870,8 +866,6 @@ layout select_dialog_item_material
 layout select_dialog_multichoice_material
 layout select_dialog_singlechoice_material
 layout support_simple_spinner_dropdown_item
-menu example_menu
-menu example_menu2
 string abc_action_bar_home_description
 string abc_action_bar_up_description
 string abc_action_menu_overflow_description
