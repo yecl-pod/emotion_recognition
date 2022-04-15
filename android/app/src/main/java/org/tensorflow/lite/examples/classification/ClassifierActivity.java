@@ -154,14 +154,16 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
               final List<Classifier.Recognition> results =
                   classifier.recognizeImage(rgbFrameBitmap, sensorOrientation);
               lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
-              LOGGER.e("Detect: %s", results);
+//              LOGGER.e("Detect: %s", results);
 
               // MOVE CAR
               if (mPodUsbSerialService != null && results.size() != 0) {
-                LOGGER.e("CARTEST calling carForward");
-                if (results.get(0).getId() == "Smiling") {
+                float area = results.get(0).getLocation().width()*results.get(0).getLocation().height();
+                if (results.get(0).getId() == "Smiling" && area < 20000) {
+                  LOGGER.e("CARTEST calling carForward");
                   carForward();
-                } else {
+                } else if (results.get(0).getId() == "Not Smiling" && area > 4500){
+                  LOGGER.e("CARTEST calling carBackward");
                   carBackward();
                 }
               }

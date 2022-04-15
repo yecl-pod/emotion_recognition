@@ -126,10 +126,10 @@ public abstract class Classifier {
     private final Float confidence;
 
     /** Optional location within the source image for the location of the recognized object. */
-    private RectF location;
+    private Rect location;
 
     public Recognition(
-        final String id, final String title, final Float confidence, final RectF location) {
+        final String id, final String title, final Float confidence, final Rect location) {
       this.id = id;
       this.title = title;
       this.confidence = confidence;
@@ -152,7 +152,7 @@ public abstract class Classifier {
       return new RectF(location);
     }
 
-    public void setLocation(RectF location) {
+    public void setLocation(Rect location) {
       this.location = location;
     }
 
@@ -253,7 +253,7 @@ public abstract class Classifier {
                                   // If classification was enabled:
                                   if (face.getSmilingProbability() != null) {
                                     float smileProb = face.getSmilingProbability();
-                                    reportResults(smileProb);
+                                    reportResults(smileProb, bounds);
                                   }
                                 }
                               }
@@ -335,14 +335,14 @@ public abstract class Classifier {
     return recognitions;
   }
 
-  public void reportResults(float smileProb) {
+  public void reportResults(float smileProb, Rect boundingBox) {
     recognitions = new ArrayList<>();
 
     if (smileProb > 0.5) {
-      recognitions.add(new Recognition("Smiling", "Smiling", smileProb, null));
+      recognitions.add(new Recognition("Smiling", "Smiling", smileProb, boundingBox));
     }
     else {
-      recognitions.add(new Recognition("Not Smiling", "Not Smiling", 1-smileProb, null));
+      recognitions.add(new Recognition("Not Smiling", "Not Smiling", 1-smileProb, boundingBox));
     }
     count++;
   }
