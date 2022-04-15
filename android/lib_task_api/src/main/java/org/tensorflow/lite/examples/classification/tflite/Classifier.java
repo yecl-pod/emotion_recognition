@@ -81,7 +81,6 @@ public abstract class Classifier {
   protected FaceDetector detector;
   public ArrayList<Recognition> recognitions = new ArrayList<>();
 
-  MainActivity controller = new MainActivity();
   private int count = 0;
 
   /**
@@ -216,7 +215,6 @@ public abstract class Classifier {
     imageSizeY = imageShape[1];
     imageSizeX = imageShape[2];
 
-    controller.init();
   }
 
   public static Bitmap scaleDown(Bitmap realImage, float maxImageSize,
@@ -342,15 +340,9 @@ public abstract class Classifier {
 
     if (smileProb > 0.5) {
       recognitions.add(new Recognition("Smiling", "Smiling", smileProb, null));
-      if (count % 10 == 0) {
-        controller.forward();
-      }
     }
     else {
       recognitions.add(new Recognition("Not Smiling", "Not Smiling", 1-smileProb, null));
-      if (count % 10 == 0) {
-        controller.backward();
-      }
     }
     count++;
   }

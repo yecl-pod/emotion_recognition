@@ -16,10 +16,13 @@
 
 package org.tensorflow.lite.examples.classification;
 
+import android.content.Intent;
+import android.content.ServiceConnection;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
 import android.graphics.Typeface;
 import android.media.ImageReader.OnImageAvailableListener;
+import android.os.Bundle;
 import android.os.SystemClock;
 import android.util.Size;
 import android.util.TypedValue;
@@ -31,6 +34,8 @@ import org.tensorflow.lite.examples.classification.env.Logger;
 import org.tensorflow.lite.examples.classification.tflite.Classifier;
 import org.tensorflow.lite.examples.classification.tflite.Classifier.Device;
 import org.tensorflow.lite.examples.classification.tflite.Classifier.Model;
+import android.content.*;
+import android.os.IBinder;
 
 public class ClassifierActivity extends CameraActivity implements OnImageAvailableListener {
   private static final Logger LOGGER = new Logger();
@@ -45,6 +50,50 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
   private int imageSizeX;
   /** Input image size of the model along y axis. */
   private int imageSizeY;
+
+  private PodUsbSerialService mPodUsbSerialService = null;
+  private Boolean mBounded = false;
+
+  @Override
+  protected void onCreate(final Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+  }
+
+  @Override
+  public synchronized void onStart() {
+    super.onStart();
+    // start and bind service
+    Intent mIntent = new Intent(this, PodUsbSerialService.class);
+    startService(mIntent);
+    bindService(mIntent, mConnection, BIND_AUTO_CREATE);
+
+    if (mPodUsbSerialService == null) {
+      LOGGER.e("CARTEST Service is null");
+    }
+    else {
+      LOGGER.e("CARTEST Service is NOT null");
+      mPodUsbSerialService.usbStartConnection();
+    }
+
+
+  }
+
+  // get service instance
+  private ServiceConnection mConnection = new ServiceConnection() {
+    @Override
+    public void onServiceConnected(ComponentName name, IBinder service) {
+      mBounded = true;
+      PodUsbSerialService.UsbBinder mUsbBinder = (PodUsbSerialService.UsbBinder) service;
+      mPodUsbSerialService = mUsbBinder.getService();
+      LOGGER.e("CARTEST Setting up service");
+    }
+
+    @Override
+    public void onServiceDisconnected(ComponentName name) {
+      mBounded = false;
+      mPodUsbSerialService = null;
+    }
+  };
 
   @Override
   protected int getLayoutId() {
@@ -80,6 +129,16 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
     rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Config.ARGB_8888);
   }
 
+  private void carForward() {
+    CommanderPacket cp = new CommanderPacket(0F, 1F, 0F, (float)14000.0);
+    mPodUsbSerialService.usbSendData(((CrtpPacket) cp).toByteArray());
+  }
+
+  private void carBackward() {
+    CommanderPacket cp = new CommanderPacket(0F, -1F, 0F, (float)14000.0);
+    mPodUsbSerialService.usbSendData(((CrtpPacket) cp).toByteArray());
+  }
+
   @Override
   protected void processImage() {
     rgbFrameBitmap.setPixels(getRgbBytes(), 0, previewWidth, 0, 0, previewWidth, previewHeight);
@@ -96,6 +155,16 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
                   classifier.recognizeImage(rgbFrameBitmap, sensorOrientation);
               lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
               LOGGER.e("Detect: %s", results);
+
+              // MOVE CAR
+              if (mPodUsbSerialService != null && results.size() != 0) {
+                LOGGER.e("CARTEST calling carForward");
+                if (results.get(0).getId() == "Smiling") {
+                  carForward();
+                } else {
+                  carBackward();
+                }
+              }
 
               runOnUiThread(
                   new Runnable() {

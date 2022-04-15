@@ -6,21 +6,4 @@
         android:minSdkVersion="21"
         android:targetSdkVersion="31" />
 
-    <application>
-        <service
-            android:name="org.tensorflow.lite.examples.classification.tflite.PodUsbSerialService"
-            android:enabled="true"
-            android:exported="true" />
-
-        <activity
-            android:name="org.tensorflow.lite.examples.classification.tflite.MainActivity"
-            android:exported="true" >
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
-
 </manifest>

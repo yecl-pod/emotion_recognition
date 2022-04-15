@@ -4,38 +4,8 @@
 4
 5    <uses-sdk
 6        android:minSdkVersion="21"
-6-->C:\Users\aman3\OneDrive\Documents\GitHub\emotion_recognition\android\lib_task_api\src\main\AndroidManifest.xml
+6-->/Users/maansidasari/Desktop/emotion_recognition/android/lib_task_api/src/main/AndroidManifest.xml
 7        android:targetSdkVersion="31" />
-7-->C:\Users\aman3\OneDrive\Documents\GitHub\emotion_recognition\android\lib_task_api\src\main\AndroidManifest.xml
+7-->/Users/maansidasari/Desktop/emotion_recognition/android/lib_task_api/src/main/AndroidManifest.xml
 8
-9    <application>
-9-->C:\Users\aman3\OneDrive\Documents\GitHub\emotion_recognition\android\lib_task_api\src\main\AndroidManifest.xml:3:5-18:19
-10        <service
-10-->C:\Users\aman3\OneDrive\Documents\GitHub\emotion_recognition\android\lib_task_api\src\main\AndroidManifest.xml:4:9-7:39
-11            android:name="org.tensorflow.lite.examples.classification.tflite.PodUsbSerialService"
-11-->C:\Users\aman3\OneDrive\Documents\GitHub\emotion_recognition\android\lib_task_api\src\main\AndroidManifest.xml:5:13-48
-12            android:enabled="true"
-12-->C:\Users\aman3\OneDrive\Documents\GitHub\emotion_recognition\android\lib_task_api\src\main\AndroidManifest.xml:6:13-35
-13            android:exported="true" />
-13-->C:\Users\aman3\OneDrive\Documents\GitHub\emotion_recognition\android\lib_task_api\src\main\AndroidManifest.xml:7:13-36
-14
-15        <activity
-15-->C:\Users\aman3\OneDrive\Documents\GitHub\emotion_recognition\android\lib_task_api\src\main\AndroidManifest.xml:9:9-17:20
-16            android:name="org.tensorflow.lite.examples.classification.tflite.MainActivity"
-16-->C:\Users\aman3\OneDrive\Documents\GitHub\emotion_recognition\android\lib_task_api\src\main\AndroidManifest.xml:10:13-41
-17            android:exported="true" >
-17-->C:\Users\aman3\OneDrive\Documents\GitHub\emotion_recognition\android\lib_task_api\src\main\AndroidManifest.xml:11:13-36
-18            <intent-filter>
-18-->C:\Users\aman3\OneDrive\Documents\GitHub\emotion_recognition\android\lib_task_api\src\main\AndroidManifest.xml:12:13-16:29
-19                <action android:name="android.intent.action.MAIN" />
-19-->C:\Users\aman3\OneDrive\Documents\GitHub\emotion_recognition\android\lib_task_api\src\main\AndroidManifest.xml:13:17-69
-19-->C:\Users\aman3\OneDrive\Documents\GitHub\emotion_recognition\android\lib_task_api\src\main\AndroidManifest.xml:13:25-66
-20
-21                <category android:name="android.intent.category.LAUNCHER" />
-21-->C:\Users\aman3\OneDrive\Documents\GitHub\emotion_recognition\android\lib_task_api\src\main\AndroidManifest.xml:15:17-77
-21-->C:\Users\aman3\OneDrive\Documents\GitHub\emotion_recognition\android\lib_task_api\src\main\AndroidManifest.xml:15:27-74
-22            </intent-filter>
-23        </activity>
-24    </application>
-25
-26</manifest>
+9</manifest>

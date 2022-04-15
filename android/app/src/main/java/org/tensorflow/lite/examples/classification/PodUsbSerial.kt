@@ -1,4 +1,4 @@
-package org.tensorflow.lite.examples.classification.tflite
+package org.tensorflow.lite.examples.classification
 
 import android.app.PendingIntent
 import android.app.Service

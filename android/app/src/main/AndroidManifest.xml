@@ -15,6 +15,10 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme.ImageClassification">
+        <service
+            android:name=".PodUsbSerialService"
+            android:enabled="true"
+            android:exported="true" />
         <activity
             android:name=".ClassifierActivity"
             android:label="@string/tfe_ic_app_name"

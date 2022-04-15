@@ -1,4 +1,4 @@
-package org.tensorflow.lite.examples.classification.tflite
+package org.tensorflow.lite.examples.classification
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder

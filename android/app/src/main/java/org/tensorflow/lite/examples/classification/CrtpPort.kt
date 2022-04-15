@@ -1,4 +1,4 @@
-package org.tensorflow.lite.examples.classification.tflite
+package org.tensorflow.lite.examples.classification
 
 enum class CrtpPort(port: Int) {
     CONSOLE(0),
