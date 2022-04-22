@@ -19,6 +19,7 @@ import static java.lang.Math.min;
 
 import android.app.Activity;
 import android.graphics.Bitmap;
+import android.graphics.Matrix;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.Trace;
@@ -80,8 +81,6 @@ public abstract class Classifier {
   // to detect faces
   protected FaceDetector detector;
   public ArrayList<Recognition> recognitions = new ArrayList<>();
-
-  private int count = 0;
 
   /**
    * Creates a classifier with the provided configuration.
@@ -235,8 +234,7 @@ public abstract class Classifier {
     // Logs this method so that it can be analyzed with systrace.
     Trace.beginSection("recognizeImage");
 
-//    TensorImage inputImage = TensorImage.fromBitmap(bitmap);
-    InputImage image = InputImage.fromBitmap(bitmap, sensorOrientation);
+    InputImage image = InputImage.fromBitmap(bitmap, 270);
 
     // run smile detection on input image
     Task<List<Face>> result =
@@ -245,6 +243,9 @@ public abstract class Classifier {
                             new OnSuccessListener<List<Face>>() {
                               @Override
                               public void onSuccess(List<Face> faces) {
+                                if (faces.size() == 0) {
+                                  recognitions.removeAll(recognitions);
+                                }
                                 for (Face face : faces) {
                                   Rect bounds = face.getBoundingBox();
                                   float rotY = face.getHeadEulerAngleY();  // Head is rotated to the right rotY degrees
@@ -331,7 +332,7 @@ public abstract class Classifier {
 //
 //    final ArrayList<Recognition> recognitions = new ArrayList<>();
 //    recognitions.add(new Recognition(prediction, prediction, highest_score, null));
-//
+
     return recognitions;
   }
 
@@ -344,7 +345,6 @@ public abstract class Classifier {
     else {
       recognitions.add(new Recognition("Not Smiling", "Not Smiling", 1-smileProb, boundingBox));
     }
-    count++;
   }
 
 

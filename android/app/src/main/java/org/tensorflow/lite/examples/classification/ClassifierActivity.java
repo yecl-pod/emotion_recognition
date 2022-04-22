@@ -54,6 +54,12 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
   private PodUsbSerialService mPodUsbSerialService = null;
   private Boolean mBounded = false;
 
+  private double k_p = 0.1;
+  double throttle = 0.0;
+  private int near_width_limit = 105;
+  private int far_width_limit = 100;
+  private int count = 0;
+
   @Override
   protected void onCreate(final Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -129,13 +135,18 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
     rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Config.ARGB_8888);
   }
 
-  private void carForward() {
-    CommanderPacket cp = new CommanderPacket(0F, 1F, 0F, (float)14000.0);
+  private void carForward(double throttle) {
+    CommanderPacket cp = new CommanderPacket(0F, 1F, 0F, (float)throttle);
     mPodUsbSerialService.usbSendData(((CrtpPacket) cp).toByteArray());
   }
 
-  private void carBackward() {
-    CommanderPacket cp = new CommanderPacket(0F, -1F, 0F, (float)14000.0);
+  private void carBackward(double throttle) {
+    CommanderPacket cp = new CommanderPacket(0F, -1F, 0F, (float)throttle);
+    mPodUsbSerialService.usbSendData(((CrtpPacket) cp).toByteArray());
+  }
+
+  private void carStop() {
+    CommanderPacket cp = new CommanderPacket(0F, 0F, 0F, 1F);
     mPodUsbSerialService.usbSendData(((CrtpPacket) cp).toByteArray());
   }
 
@@ -154,17 +165,26 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
               final List<Classifier.Recognition> results =
                   classifier.recognizeImage(rgbFrameBitmap, sensorOrientation);
               lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
-//              LOGGER.e("Detect: %s", results);
 
               // MOVE CAR
-              if (mPodUsbSerialService != null && results.size() != 0) {
-                float area = results.get(0).getLocation().width()*results.get(0).getLocation().height();
-                if (results.get(0).getId() == "Smiling" && area < 20000) {
-                  LOGGER.e("CARTEST calling carForward");
-                  carForward();
-                } else if (results.get(0).getId() == "Not Smiling" && area > 4500){
-                  LOGGER.e("CARTEST calling carBackward");
-                  carBackward();
+              if (mPodUsbSerialService != null && results.size() != 0 && count % 5 == 0) {
+                float width = results.get(0).getLocation().width();
+                LOGGER.e("CARTEST Width: "+width);
+
+                if (results.get(0).getId() == "Smiling" && width < near_width_limit) {
+                  throttle = k_p * (near_width_limit - width);
+                  if (throttle < 1) {
+                    throttle = 0;
+                  }
+                  carForward(throttle);
+                  LOGGER.e("CARTEST forwards: "+throttle);
+                } else if (results.get(0).getId() == "Not Smiling" && width > far_width_limit){
+                  throttle = k_p * (width - far_width_limit);
+                  if (throttle < 0) {
+                    throttle = 1;
+                  }
+                  carBackward(throttle);
+                  LOGGER.e("CARTEST backwards: "+throttle);
                 }
               }
 
@@ -182,6 +202,7 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
                   });
             }
             readyForNextImage();
+            count++;
           }
         });
   }

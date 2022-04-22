@@ -1,5 +1,6 @@
 package org.tensorflow.lite.examples.classification
 
+import android.util.Log
 import java.nio.ByteBuffer
 
 class CommanderPacket(@JvmField val roll: Float, @JvmField val pitch: Float, @JvmField val yaw: Float, @JvmField val thrust: Float): CrtpPacket(0, CrtpPort.COMMANDER) {
