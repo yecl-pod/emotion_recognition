@@ -61,8 +61,8 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
   private double throttle = 0.0;
   private long last_time = SystemClock.uptimeMillis();
   private double average_width = -1.0;
-  private int near_width_limit = 105;
-  private int far_width_limit = 100;
+  private int near_width_limit = 100;
+  private int far_width_limit = 95;
   private int count = 0;
 
   @Override
