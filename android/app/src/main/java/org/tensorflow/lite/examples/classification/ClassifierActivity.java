@@ -55,7 +55,12 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
   private Boolean mBounded = false;
 
   private double k_p = 0.1;
-  double throttle = 0.0;
+  private double k_d = 0.01;
+  private double near_error = 0.0;
+  private double far_error = 0.0;
+  private double throttle = 0.0;
+  private long last_time = SystemClock.uptimeMillis();
+  private double average_width = -1.0;
   private int near_width_limit = 105;
   private int far_width_limit = 100;
   private int count = 0;
@@ -162,26 +167,43 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
           public void run() {
             if (classifier != null) {
               final long startTime = SystemClock.uptimeMillis();
+              long time_difference = (long) ( (startTime - last_time) / 1000.0);
               final List<Classifier.Recognition> results =
                   classifier.recognizeImage(rgbFrameBitmap, sensorOrientation);
               lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
 
               // MOVE CAR
-              if (mPodUsbSerialService != null && results.size() != 0 && count % 5 == 0) {
-                float width = results.get(0).getLocation().width();
+              if (mPodUsbSerialService != null && results.size() != 0) {
+                float new_width = results.get(0).getLocation().height();
+                float width = (float)0.0;
+                if (average_width == -1.0) {
+                  width = new_width;
+                } else {
+                  width = (float) (0.8 * average_width + 0.2 * new_width);
+                  average_width = width;
+                }
                 LOGGER.e("CARTEST Width: "+width);
 
+
                 if (results.get(0).getId() == "Smiling" && width < near_width_limit) {
-                  throttle = k_p * (near_width_limit - width);
+                  double d_term = ((near_width_limit - width) - near_error) / time_difference;
+                  LOGGER.e("CARTEST d-term: "+d_term);
+                  throttle = k_p * (near_width_limit - width) + k_d * d_term;
+                  near_error = (near_width_limit - width);
+                  far_error = 0.0;
                   if (throttle < 1) {
                     throttle = 0;
                   }
                   carForward(throttle);
                   LOGGER.e("CARTEST forwards: "+throttle);
                 } else if (results.get(0).getId() == "Not Smiling" && width > far_width_limit){
-                  throttle = k_p * (width - far_width_limit);
-                  if (throttle < 0) {
-                    throttle = 1;
+                  double d_term = ((width - far_width_limit) - far_error) / time_difference;
+                  LOGGER.e("CARTEST d-term: "+d_term);
+                  throttle = k_p * (width - far_width_limit) + k_d * d_term;
+                  far_error = (width - far_width_limit);
+                  near_error = 0.0;
+                  if (throttle < 1) {
+                    throttle = 0;
                   }
                   carBackward(throttle);
                   LOGGER.e("CARTEST backwards: "+throttle);
