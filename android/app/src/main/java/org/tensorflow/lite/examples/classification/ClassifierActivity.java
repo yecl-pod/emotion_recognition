@@ -61,8 +61,8 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
   private double throttle = 0.0;
   private long last_time = SystemClock.uptimeMillis();
   private double average_width = -1.0;
-  private int near_width_limit = 100;
-  private int far_width_limit = 95;
+  private int near_width_limit = 95;
+  private int far_width_limit = 90;
   private int count = 0;
 
   @Override
@@ -141,17 +141,37 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
   }
 
   private void carForward(double throttle) {
-    CommanderPacket cp = new CommanderPacket(0F, 1F, 0F, (float)throttle);
+    float calibrated_throttle = (float) throttle/30;
+    if (calibrated_throttle < 0.1) {
+      calibrated_throttle = 0.1F;
+    }
+    else if (calibrated_throttle > 0.3) {
+      calibrated_throttle = 0.3F;
+    }
+
+    LOGGER.e("CARTEST forwards: "+calibrated_throttle);
+
+    CommanderHoverPacket cp = new CommanderHoverPacket(calibrated_throttle, 0F, 0F, 0.6F);
     mPodUsbSerialService.usbSendData(((CrtpPacket) cp).toByteArray());
   }
 
   private void carBackward(double throttle) {
-    CommanderPacket cp = new CommanderPacket(0F, -1F, 0F, (float)throttle);
+    float calibrated_throttle = (float) throttle/30;
+    if (calibrated_throttle < 0.1) {
+      calibrated_throttle = 0.1F;
+    }
+    else if (calibrated_throttle > 0.3) {
+      calibrated_throttle = 0.3F;
+    }
+
+    LOGGER.e("CARTEST backwards: "+-1*calibrated_throttle);
+
+    CommanderHoverPacket cp = new CommanderHoverPacket((-1*calibrated_throttle), 0F, 0F, 0.6F);
     mPodUsbSerialService.usbSendData(((CrtpPacket) cp).toByteArray());
   }
 
   private void carStop() {
-    CommanderPacket cp = new CommanderPacket(0F, 0F, 0F, 1F);
+    CommanderHoverPacket cp = new CommanderHoverPacket(0F, 0F, 0F, 0.6F);
     mPodUsbSerialService.usbSendData(((CrtpPacket) cp).toByteArray());
   }
 
@@ -187,26 +207,23 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
 
                 if (results.get(0).getId() == "Smiling" && width < near_width_limit) {
                   double d_term = ((near_width_limit - width) - near_error) / time_difference;
-                  LOGGER.e("CARTEST d-term: "+d_term);
+//                  LOGGER.e("CARTEST d-term: "+d_term);
                   throttle = k_p * (near_width_limit - width) + k_d * d_term;
                   near_error = (near_width_limit - width);
                   far_error = 0.0;
-                  if (throttle < 1) {
-                    throttle = 0;
-                  }
+
                   carForward(throttle);
-                  LOGGER.e("CARTEST forwards: "+throttle);
                 } else if (results.get(0).getId() == "Not Smiling" && width > far_width_limit){
                   double d_term = ((width - far_width_limit) - far_error) / time_difference;
-                  LOGGER.e("CARTEST d-term: "+d_term);
+//                  LOGGER.e("CARTEST d-term: "+d_term);
                   throttle = k_p * (width - far_width_limit) + k_d * d_term;
                   far_error = (width - far_width_limit);
                   near_error = 0.0;
-                  if (throttle < 1) {
-                    throttle = 0;
-                  }
+
                   carBackward(throttle);
-                  LOGGER.e("CARTEST backwards: "+throttle);
+                }
+                else {
+                  carStop();
                 }
               }
 
