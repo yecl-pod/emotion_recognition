@@ -59,6 +59,7 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
   private double near_error = 0.0;
   private double far_error = 0.0;
   private double throttle = 0.0;
+  private double average_throttle = 0.0;
   private long last_time = SystemClock.uptimeMillis();
   private double average_width = -1.0;
   private int near_width_limit = 95;
@@ -150,9 +151,7 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
     }
 
     LOGGER.e("CARTEST forwards: "+calibrated_throttle);
-
-    CommanderHoverPacket cp = new CommanderHoverPacket(calibrated_throttle, 0F, 0F, 0.6F);
-    mPodUsbSerialService.usbSendData(((CrtpPacket) cp).toByteArray());
+    moveCar(calibrated_throttle);
   }
 
   private void carBackward(double throttle) {
@@ -165,8 +164,14 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
     }
 
     LOGGER.e("CARTEST backwards: "+-1*calibrated_throttle);
+    moveCar(-1*calibrated_throttle);
+  }
 
-    CommanderHoverPacket cp = new CommanderHoverPacket((-1*calibrated_throttle), 0F, 0F, 0.6F);
+  private void moveCar(double new_throttle) {
+    float curr_throttle = (float) (0.2 * new_throttle + 0.8 * average_throttle);
+    LOGGER.e("CARTEST FINAL THROTTLE: " + curr_throttle);
+    average_throttle = curr_throttle;
+    CommanderHoverPacket cp = new CommanderHoverPacket(curr_throttle, 0F, 0F, 0.6F);
     mPodUsbSerialService.usbSendData(((CrtpPacket) cp).toByteArray());
   }
 
