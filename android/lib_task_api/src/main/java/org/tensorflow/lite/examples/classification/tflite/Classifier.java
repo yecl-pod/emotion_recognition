@@ -246,17 +246,22 @@ public abstract class Classifier {
                                 if (faces.size() == 0) {
                                   recognitions.removeAll(recognitions);
                                 }
+
+                                Rect biggest_bounds = null;
+                                float smileProb = 0;
                                 for (Face face : faces) {
                                   Rect bounds = face.getBoundingBox();
                                   float rotY = face.getHeadEulerAngleY();  // Head is rotated to the right rotY degrees
                                   float rotZ = face.getHeadEulerAngleZ();  // Head is tilted sideways rotZ degrees
 
                                   // If classification was enabled:
-                                  if (face.getSmilingProbability() != null) {
-                                    float smileProb = face.getSmilingProbability();
-                                    reportResults(smileProb, bounds);
+                                  if (face.getSmilingProbability() != null && (biggest_bounds == null || biggest_bounds.width()*bounds.height() > biggest_bounds.height()*biggest_bounds.width())) {
+                                    smileProb = face.getSmilingProbability();
+                                    biggest_bounds = bounds;
                                   }
                                 }
+                                // report the closest face's smile probability and bounding box
+                                reportResults(smileProb, biggest_bounds);
                               }
                             })
                     .addOnFailureListener(

@@ -170,14 +170,17 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
   private void moveCar(double new_throttle) {
     float curr_throttle = (float) (0.2 * new_throttle + 0.8 * average_throttle);
     LOGGER.e("CARTEST FINAL THROTTLE: " + curr_throttle);
+    if (Math.abs(new_throttle-average_throttle) < 0.02) {
+      average_throttle = curr_throttle;
+      return;
+    }
     average_throttle = curr_throttle;
     CommanderHoverPacket cp = new CommanderHoverPacket(curr_throttle, 0F, 0F, 0.6F);
     mPodUsbSerialService.usbSendData(((CrtpPacket) cp).toByteArray());
   }
 
   private void carStop() {
-    CommanderHoverPacket cp = new CommanderHoverPacket(0F, 0F, 0F, 0.6F);
-    mPodUsbSerialService.usbSendData(((CrtpPacket) cp).toByteArray());
+    moveCar(0.0);
   }
 
   @Override
@@ -210,18 +213,18 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
                 LOGGER.e("CARTEST Width: "+width);
 
 
-                if (results.get(0).getId() == "Smiling" && width < near_width_limit) {
-                  double d_term = ((near_width_limit - width) - near_error) / time_difference;
+                if (results.size() > 0 && results.get(0).getId() == "Smiling" && width < near_width_limit) {
+//                  double d_term = ((near_width_limit - width) - near_error) / time_difference;
 //                  LOGGER.e("CARTEST d-term: "+d_term);
-                  throttle = k_p * (near_width_limit - width) + k_d * d_term;
+                  throttle = k_p * (near_width_limit - width);// + k_d * d_term;
                   near_error = (near_width_limit - width);
                   far_error = 0.0;
 
                   carForward(throttle);
-                } else if (results.get(0).getId() == "Not Smiling" && width > far_width_limit){
-                  double d_term = ((width - far_width_limit) - far_error) / time_difference;
+                } else if (results.size() > 0 && results.get(0).getId() == "Not Smiling" && width > far_width_limit){
+//                  double d_term = ((width - far_width_limit) - far_error) / time_difference;
 //                  LOGGER.e("CARTEST d-term: "+d_term);
-                  throttle = k_p * (width - far_width_limit) + k_d * d_term;
+                  throttle = k_p * (width - far_width_limit);// + k_d * d_term;
                   far_error = (width - far_width_limit);
                   near_error = 0.0;
 
