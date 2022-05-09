@@ -62,8 +62,8 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
   private double average_throttle = 0.0;
   private long last_time = SystemClock.uptimeMillis();
   private double average_width = -1.0;
-  private int near_width_limit = 100;
-  private int far_width_limit = 80;
+  private int near_width_limit = 105;
+  private int far_width_limit = 75;
   private int count = 0;
 
   @Override
@@ -169,12 +169,12 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
 
   private void moveCar(double new_throttle) {
     LOGGER.e("CARTEST FINALISH THROTTLE: "+new_throttle);
-    float curr_throttle = (float) (0.3 * new_throttle + 0.7 * average_throttle);
+    float curr_throttle = (float) (0.5 * new_throttle + 0.5 * average_throttle);
 
-    if (new_throttle == 0 && average_throttle != 0 && Math.abs(curr_throttle) < 0.05) {
-      curr_throttle = 0;
-    }
-    else if (Math.abs(curr_throttle-average_throttle) < 0.02) {
+//    if (new_throttle == 0 && average_throttle != 0 && Math.abs(curr_throttle) < 0.05) {
+//      curr_throttle = 0;
+//    }
+    if (Math.abs(curr_throttle-average_throttle) < 0.02) {
       return;
     }
 
@@ -239,6 +239,12 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
                   near_error = 0.0;
 
                   carBackward(throttle);
+                }
+                else if (width != 0 && width > near_width_limit) {
+                  carBackward(0.2);
+                }
+                else if (width != 0 && width < far_width_limit) {
+                  carForward(0.2);
                 }
                 else {
                   carStop();
