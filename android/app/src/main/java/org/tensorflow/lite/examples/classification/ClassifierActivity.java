@@ -62,8 +62,8 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
   private double average_throttle = 0.0;
   private long last_time = SystemClock.uptimeMillis();
   private double average_width = -1.0;
-  private int near_width_limit = 95;
-  private int far_width_limit = 90;
+  private int near_width_limit = 100;
+  private int far_width_limit = 80;
   private int count = 0;
 
   @Override
@@ -168,13 +168,18 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
   }
 
   private void moveCar(double new_throttle) {
-    float curr_throttle = (float) (0.2 * new_throttle + 0.8 * average_throttle);
-    LOGGER.e("CARTEST FINAL THROTTLE: " + curr_throttle);
-    if (Math.abs(new_throttle-average_throttle) < 0.02) {
-      average_throttle = curr_throttle;
+    LOGGER.e("CARTEST FINALISH THROTTLE: "+new_throttle);
+    float curr_throttle = (float) (0.3 * new_throttle + 0.7 * average_throttle);
+
+    if (new_throttle == 0 && average_throttle != 0 && Math.abs(curr_throttle) < 0.05) {
+      curr_throttle = 0;
+    }
+    else if (Math.abs(curr_throttle-average_throttle) < 0.02) {
       return;
     }
+
     average_throttle = curr_throttle;
+    LOGGER.e("CARTEST FINAL THROTTLE: " + curr_throttle);
     CommanderHoverPacket cp = new CommanderHoverPacket(curr_throttle, 0F, 0F, 0.6F);
     mPodUsbSerialService.usbSendData(((CrtpPacket) cp).toByteArray());
   }
@@ -203,9 +208,14 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
               // MOVE CAR
               if (mPodUsbSerialService != null && results.size() != 0) {
                 float new_width = results.get(0).getLocation().height();
+                if (Float.isNaN(new_width)) {
+                  return;
+                }
+
                 float width = (float)0.0;
                 if (average_width == -1.0) {
                   width = new_width;
+                  average_width = width;
                 } else {
                   width = (float) (0.8 * average_width + 0.2 * new_width);
                   average_width = width;
@@ -213,7 +223,7 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
                 LOGGER.e("CARTEST Width: "+width);
 
 
-                if (results.size() > 0 && results.get(0).getId() == "Smiling" && width < near_width_limit) {
+                if (results.size() > 0 && results.get(0).getId() == "Happy" && width < near_width_limit) {
 //                  double d_term = ((near_width_limit - width) - near_error) / time_difference;
 //                  LOGGER.e("CARTEST d-term: "+d_term);
                   throttle = k_p * (near_width_limit - width);// + k_d * d_term;
@@ -221,7 +231,7 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
                   far_error = 0.0;
 
                   carForward(throttle);
-                } else if (results.size() > 0 && results.get(0).getId() == "Not Smiling" && width > far_width_limit){
+                } else if (results.size() > 0 && results.get(0).getId() == "Surprised" && width > far_width_limit){
 //                  double d_term = ((width - far_width_limit) - far_error) / time_difference;
 //                  LOGGER.e("CARTEST d-term: "+d_term);
                   throttle = k_p * (width - far_width_limit);// + k_d * d_term;

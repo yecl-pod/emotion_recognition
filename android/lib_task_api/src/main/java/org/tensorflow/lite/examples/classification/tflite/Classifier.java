@@ -20,6 +20,7 @@ import static java.lang.Math.min;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.Matrix;
+import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.Trace;
@@ -46,6 +47,7 @@ import com.google.mlkit.vision.face.Face;
 import com.google.mlkit.vision.face.FaceDetection;
 import com.google.mlkit.vision.face.FaceDetector;
 import com.google.mlkit.vision.face.FaceDetectorOptions;
+import com.google.mlkit.vision.face.FaceLandmark;
 
 /** A classifier specialized to label images using TensorFlow Lite. */
 public abstract class Classifier {
@@ -200,6 +202,7 @@ public abstract class Classifier {
       FaceDetectorOptions classification_options =
               new FaceDetectorOptions.Builder()
                       .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
+                      .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
                       .build();
       detector = FaceDetection.getClient(classification_options);
     }
@@ -234,7 +237,7 @@ public abstract class Classifier {
     // Logs this method so that it can be analyzed with systrace.
     Trace.beginSection("recognizeImage");
 
-    InputImage image = InputImage.fromBitmap(bitmap, 270);
+    InputImage image = InputImage.fromBitmap(bitmap, 0);
 
     // run smile detection on input image
     Task<List<Face>> result =
@@ -249,19 +252,56 @@ public abstract class Classifier {
 
                                 Rect biggest_bounds = null;
                                 float smileProb = 0;
+                                boolean isSurprised = false;
+
                                 for (Face face : faces) {
                                   Rect bounds = face.getBoundingBox();
                                   float rotY = face.getHeadEulerAngleY();  // Head is rotated to the right rotY degrees
                                   float rotZ = face.getHeadEulerAngleZ();  // Head is tilted sideways rotZ degrees
 
-                                  // If classification was enabled:
+                                  // if face is biggest seen
                                   if (face.getSmilingProbability() != null && (biggest_bounds == null || biggest_bounds.width()*bounds.height() > biggest_bounds.height()*biggest_bounds.width())) {
                                     smileProb = face.getSmilingProbability();
                                     biggest_bounds = bounds;
+
+                                    // detect landmarks to see if face is surprised
+                                    FaceLandmark rightMouth = face.getLandmark(FaceLandmark.MOUTH_RIGHT);
+                                    FaceLandmark leftMouth = face.getLandmark(FaceLandmark.MOUTH_LEFT);
+                                    FaceLandmark bottomMouth = face.getLandmark(FaceLandmark.MOUTH_BOTTOM);
+                                    FaceLandmark leftEye = face.getLandmark(FaceLandmark.LEFT_EYE);
+                                    FaceLandmark rightEye = face.getLandmark(FaceLandmark.RIGHT_EYE);
+                                    PointF rightMouthPos = null;
+                                    PointF leftMouthPos = null;
+                                    PointF bottomMouthPos = null;
+                                    PointF leftEyePos = null;
+                                    PointF rightEyePos = null;
+                                    if (rightMouth != null) {
+                                      rightMouthPos = rightMouth.getPosition();
+                                    }
+                                    if (leftMouth != null) {
+                                      leftMouthPos = leftMouth.getPosition();
+                                    }
+                                    if (bottomMouth != null) {
+                                      bottomMouthPos = bottomMouth.getPosition();
+                                    }
+                                    if (leftEye != null) {
+                                      leftEyePos = leftEye.getPosition();
+                                    }
+                                    if (rightEye != null) {
+                                      rightEyePos = rightEye.getPosition();
+                                    }
+                                    float mouthDistance = bottomMouthPos.y-(leftMouthPos.y+rightMouthPos.y)/2;
+                                    float scaledMouthDistance = mouthDistance / (rightEyePos.x-leftEyePos.x);
+                                    Log.e("Landmarks: ", "Left: "+leftMouthPos.y+", Right: "+rightMouthPos.y+", Bottom: "+bottomMouthPos.y);
+                                    Log.e("Surprised: ", ""+scaledMouthDistance);
+
+                                    if (scaledMouthDistance > 0.25) {
+                                      isSurprised = true;
+                                    }
                                   }
                                 }
                                 // report the closest face's smile probability and bounding box
-                                reportResults(smileProb, biggest_bounds);
+                                reportResults(smileProb, biggest_bounds, isSurprised);
                               }
                             })
                     .addOnFailureListener(
@@ -341,14 +381,20 @@ public abstract class Classifier {
     return recognitions;
   }
 
-  public void reportResults(float smileProb, Rect boundingBox) {
+  public void reportResults(float smileProb, Rect boundingBox, boolean isSurprised) {
     recognitions = new ArrayList<>();
 
-    if (smileProb > 0.5) {
-      recognitions.add(new Recognition("Smiling", "Smiling", smileProb, boundingBox));
+    if (smileProb > 0.8) {
+      recognitions.add(new Recognition("Happy", "Happy", smileProb, boundingBox));
+      Log.e("Emotion: ", "Happy");
+    }
+    else if (isSurprised) {
+      recognitions.add(new Recognition("Surprised", "Surprised", smileProb, boundingBox));
+      Log.e("Emotion: ", "Surprised");
     }
     else {
-      recognitions.add(new Recognition("Not Smiling", "Not Smiling", 1-smileProb, boundingBox));
+      recognitions.add(new Recognition("Neutral", "Neutral", 1-smileProb, boundingBox));
+      Log.e("Emotion: ", "Neutral");
     }
   }
 
