@@ -63,7 +63,7 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
   private long last_time = SystemClock.uptimeMillis();
   private double average_width = -1.0;
   private int near_width_limit = 105;
-  private int far_width_limit = 75;
+  private int far_width_limit = 40;
   private int count = 0;
 
   @Override
@@ -141,8 +141,8 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
     rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Config.ARGB_8888);
   }
 
-  private void carForward(double throttle) {
-    float calibrated_throttle = (float) throttle/30;
+  private void carForward(double throttle, int case_num) {
+    float calibrated_throttle = (float) throttle/25;
     if (calibrated_throttle < 0.1) {
       calibrated_throttle = 0.1F;
     }
@@ -151,11 +151,11 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
     }
 
     LOGGER.e("CARTEST forwards: "+calibrated_throttle);
-    moveCar(calibrated_throttle);
+    moveCar(calibrated_throttle, case_num);
   }
 
-  private void carBackward(double throttle) {
-    float calibrated_throttle = (float) throttle/30;
+  private void carBackward(double throttle, int case_num) {
+    float calibrated_throttle = (float) throttle;
     if (calibrated_throttle < 0.1) {
       calibrated_throttle = 0.1F;
     }
@@ -164,10 +164,10 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
     }
 
     LOGGER.e("CARTEST backwards: "+-1*calibrated_throttle);
-    moveCar(-1*calibrated_throttle);
+    moveCar(-1*calibrated_throttle, case_num);
   }
 
-  private void moveCar(double new_throttle) {
+  private void moveCar(double new_throttle, int case_num) {
     LOGGER.e("CARTEST FINALISH THROTTLE: "+new_throttle);
     float curr_throttle = (float) (0.5 * new_throttle + 0.5 * average_throttle);
 
@@ -180,12 +180,12 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
 
     average_throttle = curr_throttle;
     LOGGER.e("CARTEST FINAL THROTTLE: " + curr_throttle);
-    CommanderHoverPacket cp = new CommanderHoverPacket(curr_throttle, 0F, 0F, 0.6F);
+    CommanderHoverPacket cp = new CommanderHoverPacket(curr_throttle, 0F, case_num, 0.6F);
     mPodUsbSerialService.usbSendData(((CrtpPacket) cp).toByteArray());
   }
 
   private void carStop() {
-    moveCar(0.0);
+    moveCar(0.0, 0);
   }
 
   @Override
@@ -230,7 +230,7 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
                   near_error = (near_width_limit - width);
                   far_error = 0.0;
 
-                  carForward(throttle);
+                  carForward(throttle, 1);
                 } else if (results.size() > 0 && results.get(0).getId() == "Surprised" && width > far_width_limit){
 //                  double d_term = ((width - far_width_limit) - far_error) / time_difference;
 //                  LOGGER.e("CARTEST d-term: "+d_term);
@@ -238,13 +238,13 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
                   far_error = (width - far_width_limit);
                   near_error = 0.0;
 
-                  carBackward(throttle);
+                  carBackward(throttle, 2);
                 }
                 else if (width != 0 && width > near_width_limit) {
-                  carBackward(0.2);
+                  carBackward(0.2, 3);
                 }
                 else if (width != 0 && width < far_width_limit) {
-                  carForward(0.2);
+                  carForward(0.1, 4);
                 }
                 else {
                   carStop();
