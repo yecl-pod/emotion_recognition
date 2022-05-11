@@ -54,17 +54,26 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
   private PodUsbSerialService mPodUsbSerialService = null;
   private Boolean mBounded = false;
 
-  private double k_p = 0.1;
-  private double k_d = 0.01;
-  private double near_error = 0.0;
-  private double far_error = 0.0;
-  private double throttle = 0.0;
-  private double average_throttle = 0.0;
-  private long last_time = SystemClock.uptimeMillis();
-  private double average_width = -1.0;
-  private int near_width_limit = 105;
-  private int far_width_limit = 40;
-  private int count = 0;
+  // Track throttle and height values for exponential averaging
+  private float last_throttle = 0.0F;
+  private float last_height = -1.0F;
+
+  // Constants for drone movement
+  private final float K_P = 0.1F;
+  private final float THROTTLE_SCALE_FORWARD = 1.0F/25.0F;
+  private final float THROTTLE_SCALE_BACKWARD = 1.0F;
+  private final float THROTTLE_STEP_LIMIT = 0.02F;
+  private final float THROTTLE_MIN = 0.1F;
+  private final float THROTTLE_MAX = 0.3F;
+  private final float THROTTLE_AVERAGE_ALPHA = 0.5F;
+  private final float DEFAULT_THROTTLE_FORWARD = 0.1F;
+  private final float DEFAULT_THROTTLE_BACKWARD = 0.2F;
+
+  // Constants for distance measurement
+  private final int MAX_HEIGHT_LIMIT = 105;
+  private final int MIN_HEIGHT_LIMIT = 40;
+  private final float HEIGHT_AVERAGE_ALPHA = 0.2F;
+
 
   @Override
   protected void onCreate(final Bundle savedInstanceState) {
@@ -79,15 +88,9 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
     startService(mIntent);
     bindService(mIntent, mConnection, BIND_AUTO_CREATE);
 
-    if (mPodUsbSerialService == null) {
-      LOGGER.e("CARTEST Service is null");
-    }
-    else {
-      LOGGER.e("CARTEST Service is NOT null");
+    if (mPodUsbSerialService != null) {
       mPodUsbSerialService.usbStartConnection();
     }
-
-
   }
 
   // get service instance
@@ -97,7 +100,6 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
       mBounded = true;
       PodUsbSerialService.UsbBinder mUsbBinder = (PodUsbSerialService.UsbBinder) service;
       mPodUsbSerialService = mUsbBinder.getService();
-      LOGGER.e("CARTEST Setting up service");
     }
 
     @Override
@@ -141,51 +143,44 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
     rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Config.ARGB_8888);
   }
 
-  private void carForward(double throttle, int case_num) {
-    float calibrated_throttle = (float) throttle/25;
-    if (calibrated_throttle < 0.1) {
-      calibrated_throttle = 0.1F;
+  // Make sure throttle is between min and max allowed values
+  private float getCalibratedThrottle(float throttle) {
+    if (throttle < THROTTLE_MIN) {
+      return THROTTLE_MIN;
+    } else if (throttle > THROTTLE_MAX) {
+      return THROTTLE_MAX;
+    } else {
+      return throttle;
     }
-    else if (calibrated_throttle > 0.3) {
-      calibrated_throttle = 0.3F;
-    }
-
-    LOGGER.e("CARTEST forwards: "+calibrated_throttle);
-    moveCar(calibrated_throttle, case_num);
   }
 
-  private void carBackward(double throttle, int case_num) {
-    float calibrated_throttle = (float) throttle;
-    if (calibrated_throttle < 0.1) {
-      calibrated_throttle = 0.1F;
-    }
-    else if (calibrated_throttle > 0.3) {
-      calibrated_throttle = 0.3F;
-    }
-
-    LOGGER.e("CARTEST backwards: "+-1*calibrated_throttle);
-    moveCar(-1*calibrated_throttle, case_num);
+  private void droneForward(float throttle) {
+    float scaled_throttle = getCalibratedThrottle(throttle * THROTTLE_SCALE_FORWARD);
+    moveDrone(scaled_throttle);
   }
 
-  private void moveCar(double new_throttle, int case_num) {
-    LOGGER.e("CARTEST FINALISH THROTTLE: "+new_throttle);
-    float curr_throttle = (float) (0.5 * new_throttle + 0.5 * average_throttle);
+  private void droneBackward(float throttle) {
+    float scaled_throttle = getCalibratedThrottle(throttle * THROTTLE_SCALE_BACKWARD);
+    moveDrone(-1 * scaled_throttle);
+  }
 
-//    if (new_throttle == 0 && average_throttle != 0 && Math.abs(curr_throttle) < 0.05) {
-//      curr_throttle = 0;
-//    }
-    if (Math.abs(curr_throttle-average_throttle) < 0.02) {
-      return;
-    }
+  private void droneStop() {
+    moveDrone(0.0F);
+  }
 
-    average_throttle = curr_throttle;
-    LOGGER.e("CARTEST FINAL THROTTLE: " + curr_throttle);
-    CommanderHoverPacket cp = new CommanderHoverPacket(curr_throttle, 0F, case_num, 0.6F);
+  private void moveDrone(float target_throttle) {
+    // Smooth throttle values using exponential averaging
+    float averaged_throttle = THROTTLE_AVERAGE_ALPHA * target_throttle + (1 - THROTTLE_AVERAGE_ALPHA) * last_throttle;
+
+    // Don't send duplicate packet if the throttle isn't sufficiently different from the last one sent
+    if (Math.abs(averaged_throttle-last_throttle) < THROTTLE_STEP_LIMIT) return;
+
+    // Send averaged throttle value to drone
+    CommanderHoverPacket cp = new CommanderHoverPacket(averaged_throttle, 0F, 0F, 0.6F);
     mPodUsbSerialService.usbSendData(((CrtpPacket) cp).toByteArray());
-  }
 
-  private void carStop() {
-    moveCar(0.0, 0);
+    // Update last sent throttle value
+    last_throttle = averaged_throttle;
   }
 
   @Override
@@ -200,54 +195,36 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
           public void run() {
             if (classifier != null) {
               final long startTime = SystemClock.uptimeMillis();
-              long time_difference = (long) ( (startTime - last_time) / 1000.0);
+
+              // Get emotion recognition results from captured image
               final List<Classifier.Recognition> results =
                   classifier.recognizeImage(rgbFrameBitmap, sensorOrientation);
               lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
 
-              // MOVE CAR
+              // If done is connected, move based on emotion results
               if (mPodUsbSerialService != null && results.size() != 0) {
-                float new_width = results.get(0).getLocation().height();
-                if (Float.isNaN(new_width)) {
-                  return;
-                }
+                float captured_height = results.get(0).getLocation().height();
+                if (Float.isNaN(captured_height)) return;
 
-                float width = (float)0.0;
-                if (average_width == -1.0) {
-                  width = new_width;
-                  average_width = width;
+                // Remove noise from height measurement using exponential averaging
+                float smoothed_height = (last_height == -1.0) ?
+                        captured_height :
+                        (HEIGHT_AVERAGE_ALPHA * captured_height + (1 - HEIGHT_AVERAGE_ALPHA) * last_height);
+                last_height = smoothed_height;
+
+                // Send drone motion command based on recognized emotion and current distance
+                if (results.size() > 0 && results.get(0).getId() == "Happy" && smoothed_height < MAX_HEIGHT_LIMIT) {
+                  float throttle = K_P * (MAX_HEIGHT_LIMIT - smoothed_height);
+                  droneForward(throttle);
+                } else if (results.size() > 0 && results.get(0).getId() == "Surprised" && smoothed_height > MIN_HEIGHT_LIMIT){
+                  float throttle = K_P * (smoothed_height - MIN_HEIGHT_LIMIT);
+                  droneBackward(throttle);
+                } else if (smoothed_height != 0 && smoothed_height > MAX_HEIGHT_LIMIT) {
+                  droneBackward(DEFAULT_THROTTLE_BACKWARD);
+                } else if (smoothed_height != 0 && smoothed_height < MIN_HEIGHT_LIMIT) {
+                  droneForward(DEFAULT_THROTTLE_FORWARD);
                 } else {
-                  width = (float) (0.8 * average_width + 0.2 * new_width);
-                  average_width = width;
-                }
-                LOGGER.e("CARTEST Width: "+width);
-
-
-                if (results.size() > 0 && results.get(0).getId() == "Happy" && width < near_width_limit) {
-//                  double d_term = ((near_width_limit - width) - near_error) / time_difference;
-//                  LOGGER.e("CARTEST d-term: "+d_term);
-                  throttle = k_p * (near_width_limit - width);// + k_d * d_term;
-                  near_error = (near_width_limit - width);
-                  far_error = 0.0;
-
-                  carForward(throttle, 1);
-                } else if (results.size() > 0 && results.get(0).getId() == "Surprised" && width > far_width_limit){
-//                  double d_term = ((width - far_width_limit) - far_error) / time_difference;
-//                  LOGGER.e("CARTEST d-term: "+d_term);
-                  throttle = k_p * (width - far_width_limit);// + k_d * d_term;
-                  far_error = (width - far_width_limit);
-                  near_error = 0.0;
-
-                  carBackward(throttle, 2);
-                }
-                else if (width != 0 && width > near_width_limit) {
-                  carBackward(0.2, 3);
-                }
-                else if (width != 0 && width < far_width_limit) {
-                  carForward(0.1, 4);
-                }
-                else {
-                  carStop();
+                  droneStop();
                 }
               }
 
@@ -265,7 +242,6 @@ public class ClassifierActivity extends CameraActivity implements OnImageAvailab
                   });
             }
             readyForNextImage();
-            count++;
           }
         });
   }
